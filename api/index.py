@@ -2,27 +2,41 @@ import json
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI()
 
-# Enable CORS for POST requests from any origin.
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Expose-Headers": "Access-Control-Allow-Origin",
+}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["POST", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Access-Control-Allow-Origin"],
 )
 
 
 @app.middleware("http")
 async def add_cors_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    for header, value in CORS_HEADERS.items():
+        response.headers[header] = value
+    return response
+
+
+@app.options("/")
+def options_handler(response: Response):
+    for header, value in CORS_HEADERS.items():
+        response.headers[header] = value
+    response.status_code = 204
     return response
 
 
@@ -31,7 +45,6 @@ DATA_FILE = Path(__file__).parent / "q-vercel-latency.json"
 with open(DATA_FILE, "r", encoding="utf-8") as f:
     raw_data = json.load(f)
 
-# Handles either a top-level JSON list or {"telemetry": [...]}.
 if isinstance(raw_data, list):
     TELEMETRY = raw_data
 else:
